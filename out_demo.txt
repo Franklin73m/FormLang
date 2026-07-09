@@ -1,0 +1,6 @@
+== démo Shield (AttackDecomposer) ==
+  OK      seq(txt,txt)
+  OK      role (isolé)
+  BLOQUÉ  sys(role)
+  BLOQUÉ  seq(frame(ovr),txt)
+  BLOQUÉ  sys(seq(txt,frame(role)))
