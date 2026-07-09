@@ -1,4 +1,5 @@
-"""Opérations comme VRAIES machines de Turing.  -> Jour 4 (E4.3)."""
+"""Opérations comme VRAIES machines de Turing. À COMPLÉTER : tables ADD, SUB.
+-> Jour 4 (E4.3)."""
 from formlang.turing import TuringMachine
 
 ADD = TuringMachine(
@@ -23,39 +24,57 @@ ADD = TuringMachine(
 
 SUB = TuringMachine(
     transitions={
-        # Scan à droite jusqu'à -
+        # q0 : balaie tout le ruban vers la droite jusqu'au bout.
         ('q0', '1'): ('q0', '1', 'R'),
-        ('q0', '-'): ('q1', '-', 'R'),
-        
-        # Essayer de marquer un 1 après -, ignorer les X
-        ('q1', '1'): ('q2', 'X', 'L'),  # Marquer ce 1
-        ('q1', 'X'): ('q1', 'X', 'R'),  # Ignorer les 1s déjà marqués
-        ('q1', '_'): ('q5', '_', 'L'),  # Pas de 1 après, aller nettoyer
-        
-        # Revenir à gauche au -
+        ('q0', 'X'): ('q0', 'X', 'R'),
+        ('q0', '-'): ('q0', '-', 'R'),
+        ('q0', '_'): ('q1', '_', 'L'),
+
+        # q1 : depuis la fin, cherche vers la GAUCHE le 1 non marqué le plus
+        # à droite dans m (saute les X déjà consommés). Trouvé -> le marque
+        # X et passe en q2. Rencontre '-' sans trouver de 1 -> m est épuisé,
+        # direction nettoyage (q_clean_n).
+        ('q1', 'X'): ('q1', 'X', 'L'),
+        ('q1', '1'): ('q2', 'X', 'L'),
+        ('q1', '-'): ('q_clean_n', '-', 'L'),
+
+        # q2 : continue vers la gauche jusqu'au séparateur '-'.
         ('q2', '1'): ('q2', '1', 'L'),
         ('q2', 'X'): ('q2', 'X', 'L'),
-        ('q2', '_'): ('q2', '_', 'L'),  # Ignorer les blancs (du nettoyage précédent)
         ('q2', '-'): ('q3', '-', 'L'),
-        
-        # Chercher un 1 avant le - à effacer (continue même sur blancs)
-        ('q3', '1'): ('q4', '_', 'R'),  # Trouvé! L'effacer et revenir
-        ('q3', '_'): ('q3', '_', 'L'),  # Continuer à gauche sur les blancs
-        
-        # Revenir à droite vers -
-        ('q4', '_'): ('q4', '_', 'R'),
-        ('q4', '1'): ('q4', '1', 'R'),
-        ('q4', '-'): ('q1', '-', 'R'),  # Boucle pour prochaine itération
-        
-        # Nettoyer: d'abord revenir à gauche jusqu'à la fin (avant les 1s du début)
-        ('q5', '1'): ('q5', '1', 'L'),
-        ('q5', 'X'): ('q5', 'X', 'L'),
-        ('q5', '_'): ('q5', '_', 'L'),  # Continuer à gauche
-        ('q5', '-'): ('q6', '_', 'R'),  # Effacer le - et aller à droite pour les X
-        
-        # Effacer tous les X en allant à droite
-        ('q6', 'X'): ('q6', '_', 'R'),  # Effacer chaque X
-        ('q6', '_'): ('qf', '_', 'S'),  # Atteint le blanc, terminé
+
+        # q3 : cherche vers la gauche le 1 non marqué le plus à droite
+        # dans n (saute les X déjà consommés). Trouvé -> le marque X,
+        # repart vers la droite (q0) pour la prochaine paire. Si on atteint
+        # le bord gauche sans trouver de 1 : n est épuisé alors que m ne
+        # l'était pas -> résultat forcé à 0 (q_zero).
+        ('q3', 'X'): ('q3', 'X', 'L'),
+        ('q3', '1'): ('q0', 'X', 'R'),
+        ('q3', '_'): ('q_zero', '_', 'R'),
+
+        # q_zero : m > n, le résultat est 0. On efface tout ce qui reste.
+        ('q_zero', 'X'): ('q_zero', '_', 'R'),
+        ('q_zero', '-'): ('q_zero', '_', 'R'),
+        ('q_zero', '1'): ('q_zero', '_', 'R'),
+        ('q_zero', '_'): ('qf', '_', 'S'),
+
+        # q_clean_n : m est épuisé (tous ses 1 sont marqués X). On nettoie
+        # n en remontant vers la gauche : X -> blanc (unité consommée),
+        # 1 -> inchangé (unité survivante = résultat), jusqu'au bord gauche.
+        ('q_clean_n', '1'): ('q_clean_n', '1', 'L'),
+        ('q_clean_n', 'X'): ('q_clean_n', '_', 'L'),
+        ('q_clean_n', '_'): ('q_recross', '_', 'R'),
+
+        # q_recross : retraverse n (mélange de 1 et de blancs) sans y
+        # toucher, jusqu'à retrouver '-'.
+        ('q_recross', '1'): ('q_recross', '1', 'R'),
+        ('q_recross', '_'): ('q_recross', '_', 'R'),
+        ('q_recross', '-'): ('q_clean_m', '_', 'R'),
+
+        # q_clean_m : efface les X restants de l'ancien m jusqu'au bord
+        # droit -> terminé, résultat = les 1 survivants de n.
+        ('q_clean_m', 'X'): ('q_clean_m', '_', 'R'),
+        ('q_clean_m', '_'): ('qf', '_', 'S'),
     },
     start="q0", accept={"qf"},
 )

@@ -61,60 +61,50 @@ class DFA:
         """Minimise le DFA par l'algorithme de Moore (raffinement de partition)."""
         states, trans = self._completed()
 
-        # Initialiser les partitions : acceptants vs non-acceptants
-        reachable = self._reachable()
-        accepting = self.accept & reachable
-        non_accepting = reachable - self.accept
+        # Partition initiale : acceptants vs non-acceptants (sur TOUS les
+        # états complétés, y compris le puits, sinon le puits ne serait
+        # jamais distingué correctement pendant le raffinement).
+        accepting = {s for s in states if s in self.accept}
+        non_accepting = states - accepting
+        partitions = [p for p in (non_accepting, accepting) if p]
 
-        if not non_accepting:
-            partitions = [accepting]
-        elif not accepting:
-            partitions = [non_accepting]
-        else:
-            partitions = [non_accepting, accepting]
-
-        # Raffiner jusqu'à stabilisation
+        # Raffiner jusqu'à stabilisation : on sépare un bloc dès que deux de
+        # ses états atterrissent, pour une même lettre, dans des blocs
+        # DIFFERENTS.
         changed = True
         while changed:
             changed = False
+            block_of = {s: i for i, part in enumerate(partitions) for s in part}
             new_partitions = []
-
             for part in partitions:
-                # Pour chaque symbole, vérifier si on peut subdiviser la partition
-                splits = {}
+                splits: dict = {}
                 for state in part:
-                    key = tuple(
-                        next((i for i, p in enumerate(partitions)
-                              if trans.get((state, a)) in p), None)
-                        for a in sorted(self.alphabet)
-                    )
-                    if key not in splits:
-                        splits[key] = []
-                    splits[key].append(state)
-
-                # Ajouter les sous-partitions
-                for sub_part in splits.values():
-                    new_partitions.append(frozenset(sub_part))
-                    if len(splits) > 1:
-                        changed = True
-
+                    key = tuple(block_of[trans[(state, a)]] for a in sorted(self.alphabet))
+                    splits.setdefault(key, []).append(state)
+                if len(splits) > 1:
+                    changed = True
+                new_partitions.extend(frozenset(g) for g in splits.values())
             partitions = new_partitions
 
-        # Construire le DFA minimal
-        part_map = {}
-        for i, part in enumerate(partitions):
-            for state in part:
-                part_map[state] = f"q{i}"
+        # Construire le DFA minimal : un état par bloc. On enregistre TOUTES
+        # les transitions (y compris les boucles internes à un bloc), sinon
+        # le DFA minimisé serait incomplet et rejetterait à tort des mots
+        # valides dès qu'il faudrait rester dans le même bloc. On ne
+        # parcourt que les états RÉELLEMENT ATTEIGNABLES (states) : trans
+        # peut contenir des transitions issues d'états non atteignables
+        # depuis self.start, qui n'appartiennent à aucun bloc de partitions.
+        part_map = {s: f"q{i}" for i, part in enumerate(partitions) for s in part}
 
         new_trans = {}
-        for (s, a), t in trans.items():
-            if part_map[s] != part_map.get(t, None):  # seulement si dans reachable
+        for s in states:
+            for a in self.alphabet:
+                t = trans[(s, a)]
                 new_trans[(part_map[s], a)] = part_map[t]
 
         new_start = part_map[self.start]
         new_accept = {part_map[s] for s in accepting}
 
-        return DFA(new_trans, new_start, new_accept, self.alphabet)
+        return DFA(new_trans, new_start, new_accept, set(self.alphabet))
 
     def num_states(self) -> int:
         st = {self.start}
